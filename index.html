@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>舒爾特方格訓練</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#5D5CDE',
+                        'primary-dark': '#4A49C7'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .grid-cell {
+            transition: all 0.2s ease;
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+        }
+        .grid-cell:hover {
+            transform: scale(1.05);
+        }
+        .grid-cell.correct {
+            animation: correct-flash 0.5s ease;
+        }
+        .grid-cell.incorrect {
+            animation: incorrect-shake 0.5s ease;
+        }
+        @keyframes correct-flash {
+            0%, 100% { background-color: rgb(34, 197, 94); }
+            50% { background-color: rgb(22, 163, 74); }
+        }
+        @keyframes incorrect-shake {
+            0%, 20%, 40%, 60%, 80%, 100% { transform: translateX(0); }
+            10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+        }
+        .pulse-ring {
+            animation: pulse-ring 1.5s infinite;
+        }
+        @keyframes pulse-ring {
+            0% { transform: scale(1); opacity: 0.8; }
+            50% { transform: scale(1.1); opacity: 0.4; }
+            100% { transform: scale(1); opacity: 0.8; }
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-white dark:bg-gray-900 transition-colors duration-300">
+    <div class="container mx-auto px-4 py-6 max-w-4xl">
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-gray-800 dark:text-white mb-2">舒爾特方格訓練</h1>
+            <p class="text-gray-600 dark:text-gray-300">提升專注力和視覺搜尋能力</p>
+        </div>
+
+        <!-- Game Controls -->
+        <div class="bg-gray-50 dark:bg-gray-800 rounded-lg p-6 mb-6">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                <!-- Difficulty Selection -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">難度等級</label>
+                    <select id="difficulty" class="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-base">
+                        <option value="3">簡單 (3×3)</option>
+                        <option value="4">普通 (4×4)</option>
+                        <option value="5" selected>標準 (5×5)</option>
+                        <option value="6">困難 (6×6)</option>
+                        <option value="7">專家 (7×7)</option>
+                    </select>
+                </div>
+
+                <!-- Timer Display -->
+                <div class="text-center">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">用時</label>
+                    <div id="timer" class="text-3xl font-bold text-primary">00:00</div>
+                </div>
+
+                <!-- Next Number -->
+                <div class="text-center">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">尋找數字</label>
+                    <div id="nextNumber" class="text-3xl font-bold text-primary pulse-ring bg-primary bg-opacity-10 rounded-lg py-2">1</div>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex flex-wrap justify-center gap-4">
+                <button id="startBtn" class="px-6 py-3 bg-primary hover:bg-primary-dark text-white rounded-lg font-medium transition-colors text-base">
+                    開始訓練
+                </button>
+                <button id="resetBtn" class="px-6 py-3 bg-gray-500 hover:bg-gray-600 text-white rounded-lg font-medium transition-colors text-base" disabled>
+                    重新開始
+                </button>
+                <button id="statsBtn" class="px-6 py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg font-medium transition-colors text-base">
+                    查看統計
+                </button>
+            </div>
+        </div>
+
+        <!-- Game Grid -->
+        <div class="flex justify-center mb-6">
+            <div id="gameGrid" class="grid gap-2 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg" style="display: none;">
+                <!-- Grid cells will be generated here -->
+            </div>
+            <!-- Placeholder when game hasn't started -->
+            <div id="gridPlaceholder" class="flex items-center justify-center p-12 bg-gray-50 dark:bg-gray-800 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600">
+                <div class="text-center">
+                    <div class="text-6xl mb-4">🎯</div>
+                    <div class="text-gray-600 dark:text-gray-300 text-lg">點擊「開始訓練」顯示遊戲網格</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Game Status -->
+        <div id="gameStatus" class="text-center text-lg font-medium text-gray-600 dark:text-gray-300 mb-6">
+            選擇難度等級並點擊「開始訓練」開始遊戲
+        </div>
+
+        <!-- Performance Stats -->
+        <div id="performanceStats" class="hidden bg-blue-50 dark:bg-blue-900 dark:bg-opacity-30 rounded-lg p-6">
+            <h3 class="text-xl font-bold text-gray-800 dark:text-white mb-4">本次成績</h3>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                <div>
+                    <div class="text-2xl font-bold text-blue-600 dark:text-blue-400" id="finalTime">--</div>
+                    <div class="text-sm text-gray-600 dark:text-gray-300">完成時間</div>
+                </div>
+                <div>
+                    <div class="text-2xl font-bold text-green-600 dark:text-green-400" id="accuracy">--</div>
+                    <div class="text-sm text-gray-600 dark:text-gray-300">準確率</div>
+                </div>
+                <div>
+                    <div class="text-2xl font-bold text-purple-600 dark:text-purple-400" id="avgSpeed">--</div>
+                    <div class="text-sm text-gray-600 dark:text-gray-300">平均速度</div>
+                </div>
+                <div>
+                    <div class="text-2xl font-bold text-orange-600 dark:text-orange-400" id="difficulty-display">--</div>
+                    <div class="text-sm text-gray-600 dark:text-gray-300">難度等級</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Instructions -->
+        <div class="bg-yellow-50 dark:bg-yellow-900 dark:bg-opacity-30 rounded-lg p-6 mt-6">
+            <h3 class="text-lg font-bold text-gray-800 dark:text-white mb-3">訓練說明</h3>
+            <ul class="text-gray-700 dark:text-gray-300 space-y-2">
+                <li>• <strong>目標：</strong>按照數字順序（1, 2, 3...）依次點擊方格中的數字</li>
+                <li>• <strong>計時：</strong>從點擊第一個數字開始計時，找到所有數字後結束</li>
+                <li>• <strong>提升：</strong>反覆練習可以提高專注力、視覺搜尋速度和注意力控制能力</li>
+                <li>• <strong>建議：</strong>初學者從3×3開始，熟練後逐步提升到5×5或更高難度</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Statistics Modal -->
+    <div id="statsModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div class="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full max-h-screen overflow-y-auto">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold text-gray-800 dark:text-white">訓練統計</h3>
+                <button id="closeStatsBtn" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <div id="statsContent" class="space-y-4">
+                <p class="text-gray-600 dark:text-gray-300">還沒有訓練記錄，開始第一次訓練吧！</p>
+            </div>
+            <div class="mt-6 flex justify-end space-x-3">
+                <button id="clearStatsBtn" class="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-medium transition-colors text-base">
+                    清除記錄
+                </button>
+                <button id="closeStatsBtn2" class="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg font-medium transition-colors text-base">
+                    關閉
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Dark mode detection
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.documentElement.classList.add('dark');
+        }
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', event => {
+            if (event.matches) {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+        });
+
+        // Game state
+        let gameState = {
+            isPlaying: false,
+            isPaused: false,
+            currentNumber: 1,
+            startTime: null,
+            endTime: null,
+            gridSize: 5,
+            numbers: [],
+            mistakes: 0,
+            totalClicks: 0,
+            timerInterval: null
+        };
+
+        // DOM elements
+        const difficultySelect = document.getElementById('difficulty');
+        const timer = document.getElementById('timer');
+        const nextNumber = document.getElementById('nextNumber');
+        const startBtn = document.getElementById('startBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const statsBtn = document.getElementById('statsBtn');
+        const gameGrid = document.getElementById('gameGrid');
+        const gameStatus = document.getElementById('gameStatus');
+        const performanceStats = document.getElementById('performanceStats');
+        const statsModal = document.getElementById('statsModal');
+
+        // Initialize game
+        function initGame() {
+            gameState.gridSize = parseInt(difficultySelect.value);
+            gameState.currentNumber = 1;
+            gameState.mistakes = 0;
+            gameState.totalClicks = 0;
+            gameState.isPlaying = false;
+            gameState.isPaused = false;
+            
+            nextNumber.textContent = '1';
+            updateTimer(0);
+            performanceStats.classList.add('hidden');
+            
+            generateGrid();
+            updateUI();
+        }
+
+        // Generate random grid
+        function generateGrid() {
+            const totalNumbers = gameState.gridSize * gameState.gridSize;
+            gameState.numbers = Array.from({length: totalNumbers}, (_, i) => i + 1);
+            
+            // Shuffle array
+            for (let i = gameState.numbers.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [gameState.numbers[i], gameState.numbers[j]] = [gameState.numbers[j], gameState.numbers[i]];
+            }
+            
+            renderGrid();
+        }
+
+        // Render grid
+        function renderGrid() {
+            gameGrid.style.gridTemplateColumns = `repeat(${gameState.gridSize}, 1fr)`;
+            
+            // Calculate cell size based on screen width and grid size
+            const maxGridWidth = Math.min(window.innerWidth - 40, 500);
+            const cellSize = Math.floor((maxGridWidth - (gameState.gridSize - 1) * 8) / gameState.gridSize);
+            
+            gameGrid.innerHTML = '';
+            
+            gameState.numbers.forEach((number, index) => {
+                const cell = document.createElement('div');
+                cell.className = `grid-cell flex items-center justify-center bg-white dark:bg-gray-700 border-2 border-gray-300 dark:border-gray-600 rounded-lg font-bold text-gray-800 dark:text-white cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-600`;
+                cell.style.width = `${cellSize}px`;
+                cell.style.height = `${cellSize}px`;
+                cell.style.fontSize = `${Math.max(cellSize / 4, 12)}px`;
+                cell.textContent = number;
+                cell.dataset.number = number;
+                
+                cell.addEventListener('click', () => handleCellClick(number, cell));
+                gameGrid.appendChild(cell);
+            });
+        }
+
+        // Handle cell click
+        function handleCellClick(number, cell) {
+            if (!gameState.isPlaying) return;
+            
+            gameState.totalClicks++;
+            
+            if (number === gameState.currentNumber) {
+                // Correct click
+                if (gameState.currentNumber === 1) {
+                    // Start timer on first click
+                    gameState.startTime = Date.now();
+                    startTimer();
+                }
+                
+                cell.classList.add('correct');
+                cell.style.backgroundColor = '#22c55e';
+                cell.style.color = 'white';
+                cell.style.pointerEvents = 'none';
+                
+                gameState.currentNumber++;
+                nextNumber.textContent = gameState.currentNumber;
+                
+                const totalNumbers = gameState.gridSize * gameState.gridSize;
+                if (gameState.currentNumber > totalNumbers) {
+                    // Game completed
+                    completeGame();
+                }
+            } else {
+                // Incorrect click
+                gameState.mistakes++;
+                cell.classList.add('incorrect');
+                setTimeout(() => {
+                    cell.classList.remove('incorrect');
+                }, 500);
+            }
+        }
+
+        // Start timer
+        function startTimer() {
+            gameState.timerInterval = setInterval(() => {
+                const elapsed = Date.now() - gameState.startTime;
+                updateTimer(elapsed);
+            }, 10);
+        }
+
+        // Update timer display
+        function updateTimer(elapsed) {
+            const seconds = Math.floor(elapsed / 1000);
+            const milliseconds = Math.floor((elapsed % 1000) / 10);
+            timer.textContent = `${seconds.toString().padStart(2, '0')}:${milliseconds.toString().padStart(2, '0')}`;
+        }
+
+        // Complete game
+        function completeGame() {
+            gameState.isPlaying = false;
+            gameState.endTime = Date.now();
+            clearInterval(gameState.timerInterval);
+            
+            const totalTime = gameState.endTime - gameState.startTime;
+            const totalNumbers = gameState.gridSize * gameState.gridSize;
+            const accuracy = Math.round(((totalNumbers) / gameState.totalClicks) * 100);
+            const avgSpeed = (totalTime / totalNumbers / 1000).toFixed(2);
+            
+            // Save to statistics
+            saveGameStats({
+                gridSize: gameState.gridSize,
+                time: totalTime,
+                accuracy: accuracy,
+                mistakes: gameState.mistakes,
+                avgSpeed: parseFloat(avgSpeed),
+                date: new Date().toISOString()
+            });
+            
+            // Display results
+            document.getElementById('finalTime').textContent = timer.textContent;
+            document.getElementById('accuracy').textContent = `${accuracy}%`;
+            document.getElementById('avgSpeed').textContent = `${avgSpeed}s/數字`;
+            document.getElementById('difficulty-display').textContent = `${gameState.gridSize}×${gameState.gridSize}`;
+            
+            performanceStats.classList.remove('hidden');
+            gameStatus.textContent = `恭喜完成！用時 ${timer.textContent}，準確率 ${accuracy}%`;
+            
+            updateUI();
+        }
+
+        // Update UI state
+        function updateUI() {
+            const gridPlaceholder = document.getElementById('gridPlaceholder');
+            
+            if (gameState.isPlaying) {
+                startBtn.textContent = '遊戲中...';
+                startBtn.disabled = true;
+                resetBtn.disabled = false;
+                difficultySelect.disabled = true;
+                gameStatus.textContent = `尋找數字 ${gameState.currentNumber}`;
+                gameGrid.style.display = 'grid'; // 顯示遊戲網格
+                gridPlaceholder.style.display = 'none'; // 隱藏佔位符
+            } else {
+                startBtn.textContent = '開始訓練';
+                startBtn.disabled = false;
+                resetBtn.disabled = false; // 修復：遊戲結束後應該可以重新開始
+                difficultySelect.disabled = false;
+                if (!performanceStats.classList.contains('hidden')) {
+                    gameStatus.textContent = '訓練完成！點擊「重新開始」進行下一輪訓練';
+                    gameGrid.style.display = 'none'; // 隱藏遊戲網格
+                    gridPlaceholder.style.display = 'flex'; // 顯示佔位符
+                } else {
+                    gameStatus.textContent = '選擇難度等級並點擊「開始訓練」開始遊戲';
+                    gameGrid.style.display = 'none'; // 隱藏遊戲網格直到開始
+                    gridPlaceholder.style.display = 'flex'; // 顯示佔位符
+                }
+            }
+        }
+
+        // Save game statistics
+        function saveGameStats(stats) {
+            try {
+                const savedStats = JSON.parse(localStorage.getItem('schulteGridStats') || '[]');
+                savedStats.push(stats);
+                // Keep only last 50 games
+                if (savedStats.length > 50) {
+                    savedStats.splice(0, savedStats.length - 50);
+                }
+                localStorage.setItem('schulteGridStats', JSON.stringify(savedStats));
+            } catch (e) {
+                console.log('Unable to save stats (localStorage not available)');
+            }
+        }
+
+        // Load and display statistics
+        function showStatistics() {
+            try {
+                const savedStats = JSON.parse(localStorage.getItem('schulteGridStats') || '[]');
+                const statsContent = document.getElementById('statsContent');
+                
+                if (savedStats.length === 0) {
+                    statsContent.innerHTML = '<p class="text-gray-600 dark:text-gray-300">還沒有訓練記錄，開始第一次訓練吧！</p>';
+                } else {
+                    // Group by difficulty
+                    const grouped = {};
+                    savedStats.forEach(stat => {
+                        const key = `${stat.gridSize}×${stat.gridSize}`;
+                        if (!grouped[key]) grouped[key] = [];
+                        grouped[key].push(stat);
+                    });
+                    
+                    let html = '';
+                    Object.keys(grouped).sort().forEach(difficulty => {
+                        const games = grouped[difficulty];
+                        const avgTime = games.reduce((sum, game) => sum + game.time, 0) / games.length / 1000;
+                        const avgAccuracy = games.reduce((sum, game) => sum + game.accuracy, 0) / games.length;
+                        const bestTime = Math.min(...games.map(game => game.time)) / 1000;
+                        
+                        html += `
+                            <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                                <h4 class="font-bold text-gray-800 dark:text-white mb-2">${difficulty} (${games.length} 次訓練)</h4>
+                                <div class="grid grid-cols-3 gap-2 text-sm">
+                                    <div class="text-center">
+                                        <div class="font-bold text-blue-600 dark:text-blue-400">${avgTime.toFixed(1)}s</div>
+                                        <div class="text-gray-600 dark:text-gray-300">平均時間</div>
+                                    </div>
+                                    <div class="text-center">
+                                        <div class="font-bold text-green-600 dark:text-green-400">${avgAccuracy.toFixed(1)}%</div>
+                                        <div class="text-gray-600 dark:text-gray-300">平均準確率</div>
+                                    </div>
+                                    <div class="text-center">
+                                        <div class="font-bold text-purple-600 dark:text-purple-400">${bestTime.toFixed(1)}s</div>
+                                        <div class="text-gray-600 dark:text-gray-300">最佳時間</div>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    
+                    statsContent.innerHTML = html;
+                }
+                
+                statsModal.classList.remove('hidden');
+            } catch (e) {
+                const statsContent = document.getElementById('statsContent');
+                statsContent.innerHTML = '<p class="text-gray-600 dark:text-gray-300">無法載入統計資料（本地儲存不可用）</p>';
+                statsModal.classList.remove('hidden');
+            }
+        }
+
+        // Clear statistics
+        function clearStatistics() {
+            try {
+                localStorage.removeItem('schulteGridStats');
+                const statsContent = document.getElementById('statsContent');
+                statsContent.innerHTML = '<p class="text-gray-600 dark:text-gray-300">統計資料已清除</p>';
+            } catch (e) {
+                console.log('Unable to clear stats');
+            }
+        }
+
+        // Event listeners
+        startBtn.addEventListener('click', () => {
+            gameState.isPlaying = true;
+            updateUI();
+        });
+
+        resetBtn.addEventListener('click', () => {
+            if (gameState.timerInterval) {
+                clearInterval(gameState.timerInterval);
+            }
+            initGame();
+        });
+
+        statsBtn.addEventListener('click', showStatistics);
+
+        difficultySelect.addEventListener('change', () => {
+            if (!gameState.isPlaying) {
+                initGame();
+            }
+        });
+
+        document.getElementById('closeStatsBtn').addEventListener('click', () => {
+            statsModal.classList.add('hidden');
+        });
+
+        document.getElementById('closeStatsBtn2').addEventListener('click', () => {
+            statsModal.classList.add('hidden');
+        });
+
+        document.getElementById('clearStatsBtn').addEventListener('click', () => {
+            clearStatistics();
+        });
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            if (!gameState.isPlaying) {
+                renderGrid();
+            }
+        });
+
+        // Initialize on load
+        initGame();
+    </script>
+</body>
+</html>
